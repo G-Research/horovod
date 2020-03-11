@@ -87,7 +87,7 @@ def get_host_assignments(hosts, min_np, max_np=None):
     cross_sizes = collections.defaultdict(int)
 
     # allocate processes into slots
-    for host_idx, host_info in enumerate(hosts):
+    for host_idx, host_info in enumerate(sorted(hosts, key=lambda h: h.slots, reverse=True)):
         for local_rank in range(host_info.slots):
             if rank == max_np:
                 break
