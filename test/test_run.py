@@ -476,7 +476,7 @@ class RunTests(unittest.TestCase):
     @patch('horovod.run.util.lsf.LSFUtils.get_num_gpus', MagicMock(return_value=2))
     @patch('horovod.run.util.lsf.LSFUtils.get_num_cores', MagicMock(return_value=2))
     def test_js_run(self):
-        if _get_mpi_implementation_flags(False)[0] is None:
+        if not mpi_available():
             self.skipTest("MPI is not available")
 
         cmd = ['cmd', 'arg1', 'arg2']

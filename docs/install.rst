@@ -126,7 +126,7 @@ Gloo mode uses ``horovodrun`` to launch worker processes.
 
 Gloo is required to use the elastic / fault tolerant API for Horovod.
 
-If Horovod in unable to find the CMake binary, you may need to set ``HOROVOD_CMAKE`` in your environment before
+If Horovod is unable to find the CMake binary, you may need to set ``HOROVOD_CMAKE`` in your environment before
 installing.
 
 Tensor Operations
