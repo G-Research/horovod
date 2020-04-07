@@ -45,3 +45,4 @@ def rsh(driver_addresses, settings, host_hash, command, env, local_rank):
     task_client = task_service.SparkTaskClient(task_index, task_addresses,
                                                key, verbose=settings.verbose)
     task_client.run_command(command, env)
+    return task_client
