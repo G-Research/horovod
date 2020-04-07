@@ -17,6 +17,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import sys
 import unittest
 import warnings
 
@@ -27,6 +28,7 @@ import horovod.torch as hvd
 
 from horovod.common.util import gloo_built, mpi_built
 from horovod.run import run
+from horovod.run.runner import _run, HorovodArgs
 
 
 class InteractiveRunTests(unittest.TestCase):
@@ -62,6 +64,14 @@ class InteractiveRunTests(unittest.TestCase):
             self.assertListEqual([[0, 4321, 1, 4321, 2, 4321],
                                   "ret_val_of_rank_1",
                                   None], res2)
+
+    def test_happy_run_elastic(self):
+        args = HorovodArgs()
+        args.command = [sys.executable, '-V']
+        args.np = 10
+        args.min_np = 2
+        res = _run(args)
+        print(res)
 
     def test_failed_run(self):
         def fn():
