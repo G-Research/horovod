@@ -4,7 +4,7 @@
     <br/>
 
 Horovod
-=======
+-=-=-=-
 
 .. image:: https://badge.buildkite.com/6f976bc161c69d9960fc00de01b69deb6199b25680a09e5e26.svg?branch=master
    :target: https://buildkite.com/horovod/horovod
