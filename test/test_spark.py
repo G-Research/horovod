@@ -44,6 +44,8 @@ from horovod.run.common.util import secret
 from horovod.run.mpi_run import is_open_mpi
 from horovod.spark.common import constants, util
 from horovod.spark.common.store import HDFSStore
+from horovod.spark.driver.driver_service import SparkDriverService, SparkDriverClient
+from horovod.spark.driver.host_discovery import SparkDriverHostDiscovery
 from horovod.spark.task import get_available_devices
 from horovod.spark.task.task_service import SparkTaskService, SparkTaskClient
 
@@ -234,7 +236,7 @@ class SparkTests(unittest.TestCase):
     Test that horovod.spark.run raises an exception on non-zero exit code of mpi_run using Gloo.
     """
     def test_spark_run_with_non_zero_exit_with_gloo(self):
-        expected = '^Gloo job detected that one or more processes exited with non-zero ' \
+        expected = '^Horovod detected that one or more processes exited with non-zero ' \
                    'status, thus causing the job to be terminated. The first process ' \
                    'to do so was:\nProcess name: [0-9]+\nExit code: 1$'
         self.do_test_spark_run_with_non_zero_exit(use_mpi=False, use_gloo=True,
@@ -443,6 +445,39 @@ class SparkTests(unittest.TestCase):
                 actual_command = re.sub(replacement, replacement, actual_command, 1)
 
             self.assertEqual(expected_command, actual_command)
+
+    def test_spark_driver_host_discovery(self):
+        def fn():
+            return 0
+
+        key = secret.make_secret_key()
+        driver = SparkDriverService(4, fn, (), {}, key, None)
+        discovery = SparkDriverHostDiscovery(driver)
+        client = SparkDriverClient(driver.addresses(), key, verbose=2)
+
+        hosts, slots = discovery.find_available_hosts_and_slots()
+        self.assertEqual(set(), hosts)
+        self.assertEqual({}, slots)
+
+        client.register_task(0, driver.addresses(), 'host-hash-1')
+        hosts, slots = discovery.find_available_hosts_and_slots()
+        self.assertEqual({'host-hash-1'}, hosts)
+        self.assertEqual({'host-hash-1': 1}, slots)
+
+        client.register_task(1, driver.addresses(), 'host-hash-2')
+        hosts, slots = discovery.find_available_hosts_and_slots()
+        self.assertEqual({'host-hash-1', 'host-hash-2'}, hosts)
+        self.assertEqual({'host-hash-1': 1, 'host-hash-2': 1}, slots)
+
+        client.register_task(2, driver.addresses(), 'host-hash-2')
+        hosts, slots = discovery.find_available_hosts_and_slots()
+        self.assertEqual({'host-hash-1', 'host-hash-2'}, hosts)
+        self.assertEqual({'host-hash-1': 1, 'host-hash-2': 2}, slots)
+
+        client.register_task(3, driver.addresses(), 'host-hash-1')
+        hosts, slots = discovery.find_available_hosts_and_slots()
+        self.assertEqual({'host-hash-1', 'host-hash-2'}, hosts)
+        self.assertEqual({'host-hash-1': 2, 'host-hash-2': 2}, slots)
 
     def test_df_cache(self):
         # Clean the cache before starting the test
