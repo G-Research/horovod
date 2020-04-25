@@ -44,6 +44,7 @@ def rsh(driver_addresses, key, settings, host_hash, command, env, local_rank,
     :param local_rank: local rank on the host of task to run the command in
     :param background: run command in background if True, returns command result otherwise
     :param events: events to abort the command, only if background is True
+    :return exit code if background is False
     """
     if ':' in host_hash:
         raise Exception('Illegal host hash provided. Are you using Open MPI 4.0.0+?')
@@ -58,10 +59,9 @@ def rsh(driver_addresses, key, settings, host_hash, command, env, local_rank,
     task_client.run_command(command, env)
 
     if not background:
-        stop = None
         events = events or []
+        stop = threading.Event()
         for event in events:
-            stop = threading.Event()
             on_event(event, task_client.abort_command, stop=stop)
 
         try:
@@ -70,5 +70,4 @@ def rsh(driver_addresses, key, settings, host_hash, command, env, local_rank,
             traceback.print_exc()
             return -1
         finally:
-            if stop is not None:
-                stop.set()
+            stop.set()
