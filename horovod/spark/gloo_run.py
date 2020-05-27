@@ -14,6 +14,7 @@
 # ==============================================================================
 
 import sys
+import threading
 import time
 
 from horovod.run.gloo_run import launch_gloo
@@ -22,11 +23,18 @@ from horovod.spark.driver.rsh import rsh
 
 
 def _exec_command_fn(driver_addresses, key, settings, env):
+    stop = threading.Event()
+
     def _exec_command(command, slot_info, events):
         host = slot_info.hostname
         local_rank = slot_info.local_rank
         verbose = settings.verbose
+        events.append(stop)
+
         result = rsh(driver_addresses, key, host, command, env, local_rank, verbose, False, events)
+        if result != 0:
+            stop.set()
+
         return result, time.time()
     return _exec_command
 

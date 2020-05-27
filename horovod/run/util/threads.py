@@ -20,10 +20,20 @@ import threading
 def execute_function_multithreaded(fn,
                                    args_list,
                                    block_until_all_done=True,
-                                   max_concurrent_executions=1000):
+                                   max_concurrent_executions=1000,
+                                   stop=None):
     """
-    Executes fn in multiple threads each with one set of the args in the
-    args_list.
+    Executes fn in multiple threads each with one set of the args in the args_list.
+
+    At most max_concurrent_executions threads will run at the same time.
+    If you need all args from args_list to be executed concurrently,
+    then set max_concurrent_executions to len(args_list).
+
+    Setting the stop event will prevent more executions of fn, but already running fns will not
+    be interrupted. The event should be passed via args_list to fn for this purpose as well.
+    This event is not needed when max_concurrent_executions >= len(args_list) because all args will
+    be executed at once. Each thread will finish after the first execution any way.
+
     :param fn: function to be executed
     :type fn:
     :param args_list:
@@ -33,6 +43,8 @@ def execute_function_multithreaded(fn,
     :type block_until_all_done: bool
     :param max_concurrent_executions:
     :type max_concurrent_executions: int
+    :param stop: event to stop all workers
+    :type stop: threading.Event
     :return:
     If block_until_all_done is False, returns None. If block_until_all_done is
     True, function returns the dict of results.
@@ -49,7 +61,7 @@ def execute_function_multithreaded(fn,
         worker_queue.put(arg)
 
     def fn_execute():
-        while True:
+        while stop is None or not stop.is_set():
             try:
                 arg = worker_queue.get(block=False)
             except queue.Empty:

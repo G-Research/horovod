@@ -16,6 +16,7 @@
 import io
 import os
 import sys
+import threading
 
 from socket import AF_INET
 from psutil import net_if_addrs
@@ -68,26 +69,26 @@ def _launch_task_servers(all_host_names, local_host_names, driver_addresses,
     :type driver_addresses: map
     :param settings: the object that contains the setting for running horovod
     :type settings: Horovod.run.common.util.settings.Settings
-    :return:
-    :rtype:
+    :param event: a shutdown event to stop all threads
+    :type event: threading.Event
+    :return: exit code
+    :rtype: int
     """
 
-    def _exec_command(command):
+    def _exec_command(command, event):
         host_output = io.StringIO()
         try:
             exit_code = safe_shell_exec.execute(command,
                                                 stdout=host_output,
-                                                stderr=host_output)
+                                                stderr=host_output,
+                                                events=[event])
             if exit_code != 0:
-                print(
-                    'Launching horovod task function was not '
-                    'successful:\n{host_output}'
-                    .format(host_output=host_output.getvalue()))
-                os._exit(exit_code)
+                event.set()
         finally:
             host_output.close()
         return exit_code
 
+    stop = threading.Event()
     if settings.ssh_port:
         ssh_port_arg = '-p {ssh_port}'.format(ssh_port=settings.ssh_port)
     else:
@@ -114,15 +115,19 @@ def _launch_task_servers(all_host_names, local_host_names, driver_addresses,
                         index=codec.dumps_base64(index),
                         driver_addresses=codec.dumps_base64(driver_addresses),
                         settings=codec.dumps_base64(settings))
-        args_list.append([command])
+        args_list.append([command, stop])
+
     # Each thread will use ssh command to launch the server on one task. If an
-    # error occurs in one thread, entire process will be terminated. Otherwise,
-    # threads will keep running and ssh session -- and the the task server --
+    # error occurs in one thread, that thread will set the stop event, which
+    # will make all other ssh commands and multithreaded workers terminate.
+    # Otherwise, threads will keep running and ssh session -- and the the task server --
     # will be bound to the thread. In case, the horovod process dies, all
     # the ssh sessions and all the task servers will die as well.
+    # All ssh commands have to run at the same time, hence max_concurrent_executions=len(args_list).
     threads.execute_function_multithreaded(_exec_command,
                                            args_list,
-                                           block_until_all_done=False)
+                                           block_until_all_done=False,
+                                           max_concurrent_executions=len(args_list))
 
 
 @cache.use_cache()

@@ -129,10 +129,12 @@ def _exec_command_fn(settings):
     :rtype:
     """
     ssh_port_arg = '-p {ssh_port}'.format(ssh_port=settings.ssh_port) if settings.ssh_port else ''
+    stop = threading.Event()
 
     def _exec_command(command, slot_info, events):
         index = slot_info.rank
         host_name = slot_info.hostname
+        events.append(stop)
 
         host_address = network.resolve_host_address(host_name)
         local_addresses = network.get_local_host_addresses()
@@ -166,6 +168,7 @@ def _exec_command_fn(settings):
             exit_code = safe_shell_exec.execute(command, index=index, stdout=stdout, stderr=stderr, events=events)
             if exit_code != 0:
                 print('Process {idx} exit with status code {ec}.'.format(idx=index, ec=exit_code))
+                stop.set()
         except Exception as e:
             print('Exception happened during safe_shell_exec, exception '
                   'message: {message}'.format(message=e))
@@ -244,11 +247,11 @@ def launch_gloo(command, exec_command, settings, nics, env, server_ip):
     args_list = [[slot_info_to_command(slot_info), slot_info, [event]]
                  for slot_info in host_alloc_plan]
 
-    # If an error occurs in one thread, entire process will be terminated.
-    # Otherwise, threads will keep running.
+    # All commands have to run at the same time, hence max_concurrent_executions == len(args_list)
     res = threads.execute_function_multithreaded(exec_command,
                                                  args_list,
-                                                 block_until_all_done=True)
+                                                 block_until_all_done=True,
+                                                 max_concurrent_executions=len(args_list))
 
     for name, value in sorted(res.items(), key=lambda item: item[1][1]):
         exit_code, timestamp = value

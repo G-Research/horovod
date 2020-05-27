@@ -92,8 +92,7 @@ def _check_all_hosts_ssh_successful(host_addresses, ssh_port=None):
                                             ssh_port_arg=ssh_port_arg)]
                  for host_address in host_addresses]
     ssh_exit_codes = \
-        threads.execute_function_multithreaded(exec_command,
-                                               args_list)
+        threads.execute_function_multithreaded(exec_command, args_list)
 
     ssh_successful_to_all_hosts = True
     for index, ssh_status in ssh_exit_codes.items():
