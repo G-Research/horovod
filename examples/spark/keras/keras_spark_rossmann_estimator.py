@@ -29,6 +29,7 @@ import tensorflow.keras.backend as K
 from tensorflow.keras.layers import Input, Embedding, Concatenate, Dense, Flatten, Reshape, BatchNormalization, Dropout
 
 import horovod.spark.keras as hvd
+from horovod.spark.common.backend import SparkBackend
 from horovod.spark.common.store import Store
 from horovod.tensorflow.keras.callbacks import BestModelCheckpoint
 
@@ -70,7 +71,12 @@ if __name__ == '__main__':
     print('================')
 
     # Create Spark session for data preparation.
-    conf = SparkConf().setAppName('Keras Spark Rossmann Estimator Example').set('spark.sql.shuffle.partitions', '16')
+    conf = SparkConf().setAppName('Keras Spark Rossmann Estimator Example').setAll({
+        'spark.driver.memory': '1g',
+        'spark.executor.memory': '512m',
+        'spark.sql.shuffle.partitions': '16',
+        'spark.ui.showConsoleProgress': 'false'
+    }.items())
     if args.master:
         conf.setMaster(args.master)
     elif args.num_proc:
@@ -368,7 +374,9 @@ if __name__ == '__main__':
 
     # Horovod: run training.
     store = Store.create(args.work_dir)
+    backend = SparkBackend(start_timeout=None, use_mpi=None, use_gloo=None, nics=None, verbose=2)
     keras_estimator = hvd.KerasEstimator(num_proc=args.num_proc,
+                                         backend=backend,
                                          store=store,
                                          model=model,
                                          optimizer=opt,

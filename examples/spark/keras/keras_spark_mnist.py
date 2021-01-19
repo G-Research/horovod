@@ -23,6 +23,7 @@ from tensorflow.keras.layers import Dense, Dropout, Flatten
 from tensorflow.keras.layers import Conv2D, MaxPooling2D
 
 import horovod.spark.keras as hvd
+from horovod.spark.common.backend import SparkBackend
 from horovod.spark.common.store import Store
 
 parser = argparse.ArgumentParser(description='Keras Spark MNIST Example',
@@ -44,7 +45,12 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # Initialize SparkSession
-    conf = SparkConf().setAppName('keras_spark_mnist').set('spark.sql.shuffle.partitions', '16')
+    conf = SparkConf().setAppName('keras_spark_mnist').setAll({
+        'spark.driver.memory': '1g',
+        'spark.executor.memory': '512m',
+        'spark.sql.shuffle.partitions': '16',
+        'spark.ui.showConsoleProgress': 'false'
+    }.items())
     if args.master:
         conf.setMaster(args.master)
     elif args.num_proc:
@@ -99,7 +105,9 @@ if __name__ == '__main__':
     loss = keras.losses.categorical_crossentropy
 
     # Train a Horovod Spark Estimator on the DataFrame
+    backend = SparkBackend(start_timeout=None, use_mpi=None, use_gloo=None, nics=None, verbose=1)
     keras_estimator = hvd.KerasEstimator(num_proc=args.num_proc,
+                                         backend=backend,
                                          store=store,
                                          model=model,
                                          optimizer=optimizer,

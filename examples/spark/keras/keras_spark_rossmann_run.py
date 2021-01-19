@@ -68,7 +68,12 @@ if __name__ == '__main__':
     print('================')
 
     # Create Spark session for data preparation.
-    conf = SparkConf().setAppName('data_prep').set('spark.sql.shuffle.partitions', '16')
+    conf = SparkConf().setAppName('data_prep').setAll({
+        'spark.driver.memory': '1g',
+        'spark.executor.memory': '512m',
+        'spark.sql.shuffle.partitions': '16',
+        'spark.ui.showConsoleProgress': 'false'
+    }.items())
     if args.processing_master:
         conf.setMaster(args.processing_master)
     spark = SparkSession.builder.config(conf=conf).getOrCreate()

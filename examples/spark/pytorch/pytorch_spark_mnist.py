@@ -21,6 +21,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 import horovod.spark.torch as hvd
+from horovod.spark.common.backend import SparkBackend
 from horovod.spark.common.store import Store
 
 parser = argparse.ArgumentParser(description='PyTorch Spark MNIST Example',
@@ -100,7 +101,9 @@ if __name__ == '__main__':
     loss = nn.NLLLoss()
 
     # Train a Horovod Spark Estimator on the DataFrame
+    backend = SparkBackend(start_timeout=None, use_mpi=None, use_gloo=None, nics=None, verbose=1)
     torch_estimator = hvd.TorchEstimator(num_proc=args.num_proc,
+                                         backend=backend,
                                          store=store,
                                          model=model,
                                          optimizer=optimizer,
