@@ -31,6 +31,7 @@ from tensorflow.keras.layers import Input, Embedding, Concatenate, Dense, Flatte
 import horovod.spark.keras as hvd
 from horovod.spark.common.store import Store
 from horovod.tensorflow.keras.callbacks import BestModelCheckpoint
+from horovod.spark.common.backend import SparkBackend
 
 parser = argparse.ArgumentParser(description='Keras Spark Rossmann Estimator Example',
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -368,8 +369,10 @@ if __name__ == '__main__':
 
     # Horovod: run training.
     store = Store.create(args.work_dir)
+    backend = SparkBackend(num_proc=2, use_gloo=True)
     keras_estimator = hvd.KerasEstimator(num_proc=args.num_proc,
                                          store=store,
+                                         backend=backend,
                                          model=model,
                                          optimizer=opt,
                                          loss='mae',
