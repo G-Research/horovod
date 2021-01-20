@@ -31,7 +31,7 @@ parser.add_argument('--processing-master',
                     help='spark cluster to use for light processing (data preparation & prediction).'
                          'If set to None, uses current default cluster. Cluster should be set up to provide'
                          'one task per CPU core. Example: spark://hostname:7077')
-parser.add_argument('--training-master', default='local-cluster[2,1,1024]',
+parser.add_argument('--training-master', default='local-cluster[4,1,1024]',
                     help='spark cluster to use for training. If set to None, uses current default cluster. Cluster'
                          'should be set up to provide a Spark task per multiple CPU cores, or per GPU, e.g. by'
                          'supplying `-c <NUM_GPUS>` in Spark Standalone mode. Example: spark://hostname:7077')
@@ -57,7 +57,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # Location of discovery script on local filesystem.
-    DISCOVERY_SCRIPT = 'get_gpu_resources.sh'
+    DISCOVERY_SCRIPT = '/data/enrico/Work/git/horovod-GR-4/examples/spark/keras/get_gpu_resources.sh'
 
     # HDFS driver to use with Petastorm.
     PETASTORM_HDFS_DRIVER = 'libhdfs'
@@ -343,7 +343,7 @@ if __name__ == '__main__':
 
     def act_sigmoid_scaled(x):
         """Sigmoid scaled to logarithm of maximum sales scaled by 20%."""
-        return tf.nn.sigmoid(x) * tf.log(max_sales) * 1.2
+        return tf.nn.sigmoid(x) * tf.math.log(max_sales) * 1.2
 
 
     CUSTOM_OBJECTS = {'exp_rmspe': exp_rmspe,
@@ -366,8 +366,7 @@ if __name__ == '__main__':
 
 
     # Do not use GPU for the session creation.
-    config = tf.ConfigProto(device_count={'GPU': 0})
-    K.set_session(tf.Session(config=config))
+    tf.config.experimental.set_visible_devices([], 'GPU')
 
     # Build the model.
     inputs = {col: Input(shape=(1,), name=col) for col in all_cols}
@@ -416,10 +415,13 @@ if __name__ == '__main__':
         hvd.init()
 
         # Horovod: pin GPU to be used to process local rank (one GPU per process), if GPUs are available.
-        config = tf.ConfigProto()
-        config.gpu_options.allow_growth = True
-        config.gpu_options.visible_device_list = get_available_devices()[0]
-        K.set_session(tf.Session(config=config))
+        from pyspark import TaskContext
+        task_context = TaskContext.get()
+        gpus = task_context.resources()['gpu'].addresses if task_context else []
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+        if gpus:
+            tf.config.experimental.set_visible_devices(gpus[hvd.local_rank()], 'GPU')
 
         # Horovod: restore from checkpoint, use hvd.load_model under the hood.
         model = deserialize_model(model_bytes, hvd.load_model)
@@ -477,12 +479,12 @@ if __name__ == '__main__':
                     .apply(tf.data.experimental.unbatch()) \
                     .shuffle(int(train_rows / hvd.size())) \
                     .batch(args.batch_size) \
-                    .map(lambda x: (tuple(getattr(x, col) for col in all_cols), tf.log(x.Sales)))
+                    .map(lambda x: (tuple(getattr(x, col) for col in all_cols), tf.math.log(x.Sales)))
 
                 val_ds = make_petastorm_dataset(val_reader) \
                     .apply(tf.data.experimental.unbatch()) \
                     .batch(args.batch_size) \
-                    .map(lambda x: (tuple(getattr(x, col) for col in all_cols), tf.log(x.Sales)))
+                    .map(lambda x: (tuple(getattr(x, col) for col in all_cols), tf.math.log(x.Sales)))
 
                 history = model.fit(train_ds,
                                     validation_data=val_ds,
@@ -528,7 +530,7 @@ if __name__ == '__main__':
 
 
     # Create Spark session for training.
-    conf = SparkConf().setAppName('training')
+    conf = SparkConf().setAppName('training').set('spark.local.dir', '/home/enrico/spark-tmp')
     if args.training_master:
         conf.setMaster(args.training_master)
     conf = set_gpu_conf(conf)
@@ -536,7 +538,7 @@ if __name__ == '__main__':
 
     # Horovod: run training.
     history, best_model_bytes = \
-        horovod.spark.run(train_fn, args=(model_bytes,), num_proc=args.num_proc, verbose=2)[0]
+        horovod.spark.run(train_fn, args=(model_bytes,), num_proc=args.num_proc, use_gloo=True, verbose=2)[0]
 
     best_val_rmspe = min(history['val_exp_rmspe'])
     print('Best RMSPE: %f' % best_val_rmspe)
@@ -580,16 +582,17 @@ if __name__ == '__main__':
 
             if GPU_INFERENCE_ENABLED:
                 from pyspark import TaskContext
-                config = tf.ConfigProto()
-                config.gpu_options.allow_growth = True
-                config.gpu_options.visible_device_list = TaskContext.get().resources()['gpu'].addresses[0]
-                K.set_session(tf.Session(config=config))
+                task_context = TaskContext.get()
+                gpus = task_context.resources()['gpu'].addresses if task_context else []
+                for gpu in gpus:
+                    tf.config.experimental.set_memory_growth(gpu, True)
+                if gpus:
+                    tf.config.experimental.set_visible_devices(gpus[hvd.local_rank()], 'GPU')
             else:
                 # Do not use GPUs for prediction, use single CPU core per task.
-                config = tf.ConfigProto(device_count={'GPU': 0})
-                config.inter_op_parallelism_threads = 1
-                config.intra_op_parallelism_threads = 1
-                K.set_session(tf.Session(config=config))
+                tf.config.experimental.set_visible_devices([], 'GPU')
+                tf.config.threading.set_inter_op_parallelism_threads(1)
+                tf.config.threading.set_intra_op_parallelism_threads(1)
 
             # Restore from checkpoint.
             model = deserialize_model(model_bytes, tf.keras.models.load_model)

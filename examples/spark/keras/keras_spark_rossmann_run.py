@@ -178,7 +178,7 @@ if __name__ == '__main__':
 
         # Days & weeks of promotion, cap to 25 weeks.
         df = df.withColumn('Promo2Since',
-                           F.expr('date_add(format_string("%s-01-01", Promo2SinceYear), (Promo2SinceWeek - 1) * 7)'))
+                           F.expr('date_add(format_string("%s-01-01", Promo2SinceYear), cast((Promo2SinceWeek - 1) * 7 as integer))'))
         df = df.withColumn('Promo2Days',
                            F.when(df.Promo2SinceYear > 1900,
                                   F.greatest(F.lit(0), F.least(F.lit(25 * 7), F.datediff(df.Date, df.Promo2Since))))
@@ -315,9 +315,9 @@ if __name__ == '__main__':
     print('Model training')
     print('==============')
 
-    import tensorflow as tf
-    from tensorflow.keras.layers import Input, Embedding, Concatenate, Dense, Flatten, Reshape, BatchNormalization, Dropout
-    import tensorflow.keras.backend as K
+    import tensorflow.compat.v1 as tf
+    from tensorflow.compat.v1.keras.layers import Input, Embedding, Concatenate, Dense, Flatten, Reshape, BatchNormalization, Dropout
+    import tensorflow.compat.v1.keras.backend as K
     import horovod.spark
     import horovod.tensorflow.keras as hvd
 
@@ -397,8 +397,8 @@ if __name__ == '__main__':
         from petastorm import make_batch_reader
         from petastorm.tf_utils import make_petastorm_dataset
         import tempfile
-        import tensorflow as tf
-        import tensorflow.keras.backend as K
+        import tensorflow.compat.v1 as tf
+        import tensorflow.compat.v1.keras.backend as K
         import shutil
 
         # Horovod: initialize Horovod inside the trainer.
@@ -531,8 +531,8 @@ if __name__ == '__main__':
     def predict_fn(model_bytes):
         def fn(rows):
             import math
-            import tensorflow as tf
-            import tensorflow.keras.backend as K
+            import tensorflow.compat.v1 as tf
+            import tensorflow.compat.v1.keras.backend as K
 
             # Do not use GPUs for prediction, use single CPU core per task.
             config = tf.ConfigProto(device_count={'GPU': 0})
