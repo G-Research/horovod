@@ -35,7 +35,7 @@ jobs:
     steps:
     - name: Download Buildkite Artifacts
       id: download
-      uses: docker://ghcr.io/enricomi/download-buildkite-artifact-action:v1
+      uses: EnricoMi/download-buildkite-artifact-action@branch-infer-token
       with:
         buildkite_token: ${{ secrets.BUILDKITE_TOKEN }}
         ignore_build_states: blocked,canceled,skipped,not_run
@@ -44,7 +44,7 @@ jobs:
 
     - name: Unit Test Results
       id: results
-      uses: docker://ghcr.io/enricomi/publish-unit-test-result-action:v1
+      uses: EnricoMi/publish-unit-test-result-action@branch-pr-info-from-event
       if: steps.download.outputs.download-state != 'skipped' && steps.download.outputs.download-files > 0
       with:
         pull_request_build: commit
