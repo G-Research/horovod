@@ -509,7 +509,7 @@ def main():
                 f'          path: artifacts\n'
                 f'\n'
                 f'      - name: Publish Unit Test Results\n'
-                f'        uses: docker://ghcr.io/enricomi/publish-unit-test-result-action:v1\n'
+                f'        uses: uses: EnricoMi/publish-unit-test-result-action@v1\n'
                 f'        if: always()\n'
                 f'        with:\n'
                 f'          github_token: ${{{{ github.token }}}}\n'
