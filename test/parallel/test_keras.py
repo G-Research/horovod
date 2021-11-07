@@ -20,7 +20,10 @@ import os
 import sys
 
 try:
-    import keras
+    try:
+        import keras
+    except AttributeError:
+        import tensorflow.keras
     from keras import backend as K
     import horovod.keras as hvd
     _HAS_KERAS = True
